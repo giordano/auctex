@@ -1,8 +1,0 @@
-@section News in 11.01
-
-@itemize @bullet
-
-@item
-Bug fixes.
-
-@end itemize
