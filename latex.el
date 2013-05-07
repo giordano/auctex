@@ -515,9 +515,49 @@ Styles such as tabularx may set it according to their needs.")
 ;; means it is usually let-bound for such operations.
 (defvar LaTeX-current-environment nil)
 
+(defcustom LaTeX-document-template-alist
+  '(("Article" "\\documentclass{article}
+\\usepackage[T1]{fontenc}
+\\usepackage[utf8]{inputenc}
+
+\\begin{document}
+" "
+\\end{document}")
+    ("Book" "\\documentclass{book}
+\\usepackage[T1]{fontenc}
+\\usepackage[utf8]{inputenc}
+
+\\begin{document}
+" "
+\\end{document}")
+    ("Beamer" "\\documentclass{beamer}
+\\usepackage[T1]{fontenc}
+\\usepackage[utf8]{inputenc}
+
+\\begin{document}
+
+\\begin{slide}
+  \\frametitle{" "}
+\\end{slide}
+\\end{document}"))
+  "Alist of document templates which can be inserted when
+`LaTeX-environment' is called with `\\[universal-argument]' and
+the chosen environment is \"document\".
+
+For each element, the key is the template name, the value is a
+sequence of two strings, the former is the string that should be
+inserted before point, the latter is the string that should be
+inserted after point."
+  :group 'LaTeX-environment
+  :type '(alist :key-type (string :tag "Template name")
+		:value-type (group (string :tag "Insert before point")
+				   (string :tag "Insert after point"))))
+
 (defun LaTeX-environment (arg)
   "Make LaTeX environment (\\begin{...}-\\end{...} pair).
-With optional ARG, modify current environment.
+With optional ARG, modify current environment, unless the chosen
+environment is \"document\", in that case insert a document
+template from `LaTeX-document-template-alist'.
 
 It may be customized with the following variables:
 
@@ -553,7 +593,22 @@ It may be customized with the following variables:
 	  (LaTeX-add-environments (list environment)))
 
       (if arg
-	  (LaTeX-modify-environment environment)
+	  (if (string-equal environment "document")
+	      (let* ((completion-ignore-case t)
+		     (template (completing-read
+				"Document template name: "
+				(TeX-delete-duplicate-strings
+				 (mapcar (lambda (elt) (car elt))
+					 LaTeX-document-template-alist)))))
+		(insert
+		 (car (cdr (assoc template LaTeX-document-template-alist))))
+		(save-excursion
+		  (insert (car (cdr (cdr (assoc
+					  template
+					  LaTeX-document-template-alist))))))
+		(indent-according-to-mode)
+		(TeX-update-style))
+	    (LaTeX-modify-environment environment))
 	(LaTeX-environment-menu environment)))))
 
 (defun LaTeX-environment-menu (environment)

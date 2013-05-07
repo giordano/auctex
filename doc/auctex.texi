@@ -736,7 +736,8 @@ prompt you for further specifications.
 
 If the optional argument @var{arg} is not-nil (i.e. you have given a
 prefix argument), the current environment is modified and no new
-environment is inserted.
+environment is inserted, unless the chosen environment is
+@samp{document}---see below.
 @end deffn
 
 As a default selection, @AUCTeX{} will suggest the environment last
@@ -759,9 +760,23 @@ to @code{slide}, in @file{letter.el} to @code{letter}, and in
 
 If the document is empty, or the cursor is placed at the top of the
 document, @AUCTeX{} will default to insert a `document' environment.
+You may insert a document template calling @code{LaTeX-environment} with
+a prefix argument.
 
-Most of these are described further in the following sections, and you
-may easily specify more.  @xref{Customizing Environments}.
+@defopt LaTeX-document-template-alist
+This is the alist of document templates which can be inserted when
+@code{LaTeX-environment} is called with a prefix argument and you chose
+@samp{document} environment.
+
+For each element, the key is the template name, the value is a
+sequence of two strings, the former is the string that should be
+inserted before point, the latter is the string that should be
+inserted after point.
+@end defopt
+
+Most of the known environments are described further in the following
+sections, and you may easily specify more.  @xref{Customizing
+Environments}.
 
 @menu
 * Equations::                   Equations
