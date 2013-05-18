@@ -149,6 +149,7 @@ Editing the Document Source
 * Commenting::                  Commenting text
 * Indenting::                   Reflecting syntactic constructs with whitespace
 * Filling::                     Automatic and manual line breaking
+* Visiting TeX files::          Visiting TeX files
 
 Inserting Environment Templates
 
@@ -325,6 +326,7 @@ indenting and filling and for navigating through the document.
 * Commenting::                  Commenting text
 * Indenting::                   Reflecting syntactic constructs with whitespace
 * Filling::                     Automatic and manual line breaking
+* Visiting TeX files::          Visiting TeX files
 @end menu
 
 @node Quotes
@@ -1495,6 +1497,48 @@ default) and the comment does not fit into the line, a line break will
 be inserted before the last non-comment word to minimize the chance that
 the line becomes overfull.
 @end defopt
+
+@node Visiting TeX files
+@section Visiting TeX files
+@cindex Visiting
+
+If you have the program @samp{kpsewhich}, present in any modern @TeX{}
+distribution, @AUCTeX{} makes it easy to visit @TeX{} files even if you
+don't know their full path.
+
+@deffn Command TeX-kpsewhich-find-file @var{name}
+@kindex C-c C-a a
+(@kbd{C-c C-a a}) Visit file associated to @var{name} searching for it
+with @samp{kpsewhich}.  If @var{name} is nil prompt for a file name.  If
+there is an active region, use it as initial input.  This is an
+interactive function, when it is called with prefix argument
+(@kbd{C-u}), visit file in another window, in the current one otherwise.
+
+@samp{kpsewhich} is executed in the same directory of the master file of
+the current buffer.
+@end deffn
+
+For example, if you want to visit the file of the book @LaTeX{} class,
+use @kbd{@key{C-c C-a a} book.cls @key{RET}}.
+
+In @LaTeX{} mode, @AUCTeX{} is able to guess file name from text around
+point, when it is placed in the argument of some @LaTeX{} macros.
+
+@deffn Command LaTeX-find-file-at-point
+@kindex C-c C-a l
+(@kbd{C-c C-a l}) Visit @LaTeX{} file searching for it with
+@samp{kpsewhich}.  File basename is guessed from text around point and
+its extension is guessed from current @TeX{} macro.  This is an
+interactive function, when it is called with prefix argument
+(@kbd{C-u}), visit file in another window, in the current one otherwise.
+@end deffn
+
+@code{LaTeX-find-file-at-point} works with @samp{\usepackage},
+@samp{\documentclass}, @samp{\include}, @samp{\input},
+@samp{\bibliography}, and @samp{\addbibresource} @LaTeX{} macros, among
+others.  For example, if you want to visit the style file of the
+hyperref @LaTeX{} package, move the point on the word @samp{hyperref} in
+the line @samp{\usepackage@{listings,hyperref@}} and issue @key{C-c C-a l}.
 
 @node Display
 @chapter Controlling Screen Display

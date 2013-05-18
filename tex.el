@@ -3914,6 +3914,30 @@ If optional argument STRIP is non-nil, remove file extension."
 					       dir) t)))))
 	    (append local-files (TeX-search-files dirs exts nodir strip)))))))
 
+;;; Visiting Files
+
+(defun TeX-kpsewhich-find-file (&optional name)
+  "Visit file associated to NAME searching for it with kpsewhich.
+If NAME is nil prompt for a file name.  If there is an active
+region, use it as initial input.  When it is called with
+\\[universal-argument] prefix, visit file in another window, in
+the current one otherwise."
+  (interactive)
+  (if (executable-find "kpsewhich")
+      (let* ((fun (if current-prefix-arg 'find-file-other-window 'find-file))
+	     (default-directory (TeX-master-directory))
+	     (name (or name (TeX-read-string
+			     "File name: "
+			     (if (TeX-active-mark)
+				 (buffer-substring-no-properties
+				  (region-beginning) (region-end))))))
+	     (file (replace-regexp-in-string
+		    "[\n\r]*\\'" ""
+		    (shell-command-to-string (concat "kpsewhich " name)))))
+	(if (and (not (zerop (length file))) (file-exists-p file))
+	    (funcall fun file)
+	  (message (concat "File " name " not found."))))
+    (message "Kpsewhich not available.")))
 
 ;;; Utilities
 ;;
@@ -4211,7 +4235,9 @@ Brace insertion is only done if point is in a math construct and
     
     (define-key map "\C-c;"    'TeX-comment-or-uncomment-region)
     (define-key map "\C-c%"    'TeX-comment-or-uncomment-paragraph)
-    
+
+    (define-key map "\C-c\C-a a" 'TeX-kpsewhich-find-file)
+
     (define-key map "\C-c\C-t\C-p"   'TeX-PDF-mode)
     (define-key map "\C-c\C-t\C-i"   'TeX-interactive-mode)
     (define-key map "\C-c\C-t\C-s"   'TeX-source-correlate-mode)
