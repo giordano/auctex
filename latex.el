@@ -1235,9 +1235,9 @@ This is necessary since index entries may contain commands and stuff.")
 	1 LaTeX-auto-environment)
        (,(concat "\\\\newtheorem{\\(" token "+\\)}") 1 LaTeX-auto-environment)
        ("\\\\input{\\(\\.*[^#}%\\\\\\.\n\r]+\\)\\(\\.[^#}%\\\\\\.\n\r]+\\)?}"
-	1 TeX-auto-file)
+	1 TeX-auto-add-file)
        ("\\\\include{\\(\\.*[^#}%\\\\\\.\n\r]+\\)\\(\\.[^#}%\\\\\\.\n\r]+\\)?}"
-	1 TeX-auto-file)
+	1 TeX-auto-add-file)
        (, (concat "\\\\bibitem{\\(" token "[^, \n\r\t%\"#'()={}]*\\)}")
 	  1 LaTeX-auto-bibitem)
        (, (concat "\\\\bibitem\\[[^][\n\r]+\\]{\\(" token "[^, \n\r\t%\"#'()={}]*\\)}")
@@ -1387,14 +1387,15 @@ The value is actually the tail of the list of options given to PACKAGE."
             (dolist (elt (TeX-split-string
                           "\\([ \t\r\n]\\|%[^\n\r]*[\n\r]\\|,\\)+" style))
 	      ;; Append style to the style list.
-	      (add-to-list 'TeX-auto-file elt t)
-              ;; Append to `LaTeX-provided-package-options' the name of the
-              ;; package and the options provided to it at load time.
-	      (unless (equal options '(""))
-		(TeX-add-to-alist 'LaTeX-provided-package-options
-				  (list (cons elt options)))))
+	      (add-to-list 'TeX-auto-file (list (concat elt ".sty")
+						:type 'package
+						:options options))
+	      ;; FIXME: Better set a separate variable which can be
+	      ;; queried more easily, e.g. for language options?
+	      (add-to-list 'TeX-auto-file (list (concat style ".cls")
+						:type 'class
+						:options options)))
 	  ;; And a special "art10" style file combining style and size.
-	  (add-to-list 'TeX-auto-file style t)
 	  (add-to-list 'TeX-auto-file
 		       (concat
 			(cond ((string-equal "article" style)
@@ -1953,7 +1954,14 @@ files."
 		  (TeX-argument-prompt optional prompt "File") nil ""))
       (unless (string-equal file "")
 	(setq file (file-relative-name file)))
-      (setq style (file-name-sans-extension (file-name-nondirectory file))))
+      ;; FIXME: Heuristic warning!  Instead, provide unified way to
+      ;; determine file names with extensions from those without.
+      ;; Something like `reftex-locate-file' could be used.
+      (setq style (cond ((string= prompt "Package")
+			 (concat file ".sty"))
+			((not (string-match "\\.[A-Za-z]+\\'" file))
+			 (concat file ".tex"))
+			(t file))))
     (unless (string-equal "" style)
       (TeX-run-style-hooks style))
     (TeX-argument-insert file optional)))

@@ -81,7 +81,9 @@ Return non-nil if document needs to be re-TeX'ed."
       (setq name (TeX-master-file)))
 
   (TeX-check-files (concat name "." (TeX-output-extension))
-		   (cons name (TeX-style-list))
+		   (cons name (mapcar (lambda (style)
+					(if (listp style) (car style) style))
+				      (TeX-style-list)))
 		   TeX-file-extensions))
 
 (defun TeX-command-master (&optional override-confirm)
@@ -481,6 +483,39 @@ QUEUE is non-nil when we are checking for the printer queue."
 	(setq expansion (replace-match printer t t expansion 0)))
       expansion)))
 
+(defun TeX-style-match (s-or-regexp1 s2)
+  "Return non-nil, if S-OR-REGEXP1 fuzzily matches style S2.
+The styles do not need to be exactly the same but one at least
+has to be a subset of the other."
+  (cond ((and (stringp s-or-regexp1) (stringp s2))
+	 (string-match s-or-regexp1 s2))
+	((and (listp s-or-regexp1) (listp s2))
+	 (let ((plist1 (cdr s-or-regexp1))
+	       (plist2 (cdr s2)))
+	   (and (string= (car s-or-regexp1) (car s2))
+		(eq (plist-get :type plist1) (plist-get :type plist2))
+		(if (eq (plist-get :type plist1) 'file)
+		    t
+		  (let* ((options1 (plist-get :options plist1))
+			 (options2 (plist-get :options plist2))
+			 (options-short (or (if (> (length options1)
+						   (length options2))
+						options2
+					      options1)
+					    '()))
+			 (options-long (or (if (> (length options1)
+						  (length options2))
+					       options1
+					     options2)
+					   '()))
+			 (retval t))
+		    (catch 'mismatch
+		      (dolist (elt options-short)
+			(unless (member elt options-long)
+			  (setq retval nil)
+			  (throw 'mismatch nil))))
+		    retval)))))))
+
 (defun TeX-style-check (styles)
   "Check STYLES compared to the current style options."
   (let ((files (TeX-style-list)))
@@ -532,10 +567,10 @@ the current style options."
 		((listp style)
 		 (while
 		     (and style
-			  (TeX-member (car style) files 'string-match))
+			  (TeX-member (car style) files 'TeX-style-match))
 		   (setq style (cdr style)))
 		 style)
-		((not (TeX-member style files 'string-match)))))))
+		((not (TeX-member style files 'TeX-style-match)))))))
       (setq styles (cdr styles)))
     (if styles
 	(nth 2 (car styles))
