@@ -112,10 +112,10 @@ If nil, none is specified."
 ;; TeX-expand-list for a description of the % escapes
 
 (defcustom TeX-command-list
-  `(("TeX" "%(PDF)%(tex) %`%S%(PDFout)%(mode)%' %t"
+  `(("TeX" "%(PDF)%(tex) %`%S%(PDFout)%(mode)%(outdir)%(jobname)%' %t"
      TeX-run-TeX nil
      (plain-tex-mode ams-tex-mode texinfo-mode) :help "Run plain TeX")
-    ("LaTeX" "%`%l%(mode)%' %t"
+    ("LaTeX" "%`%l%(mode)%(outdir)%(jobname)%' %t"
      TeX-run-TeX nil
      (latex-mode doctex-mode) :help "Run LaTeX")
 	;; Not part of standard TeX.
@@ -132,8 +132,8 @@ If nil, none is specified."
     ("ConTeXt Full" "texexec %(execopts)%t"
      TeX-run-TeX nil
      (context-mode) :help "Run ConTeXt until completion")
-    ("BibTeX" "bibtex %s" TeX-run-BibTeX nil t :help "Run BibTeX")
-    ("Biber" "biber %s" TeX-run-Biber nil t :help "Run Biber")
+    ("BibTeX" "bibtex %(outfile-ext)" TeX-run-BibTeX nil t :help "Run BibTeX")
+    ("Biber" "biber %(outfile-ext)" TeX-run-Biber nil t :help "Run Biber")
     ,(if (or window-system (getenv "DISPLAY"))
 	'("View" "%V" TeX-run-discard-or-function t t :help "Run Viewer")
        '("View" "dvi2tty -q -w 132 %s" TeX-run-command t t
@@ -143,7 +143,8 @@ If nil, none is specified."
      :visible TeX-queue-command)
     ("File" "%(o?)dvips %d -o %f " TeX-run-command t t
      :help "Generate PostScript file")
-    ("Index" "makeindex %s" TeX-run-command nil t :help "Create index file")
+    ("Index" "makeindex %(outfile-ext)" TeX-run-command nil t
+     :help "Create index file")
     ("Xindy" "texindy %s" TeX-run-command nil t
      :help "Run xindy to create index file")
     ("Check" "lacheck %s" TeX-run-compile nil (latex-mode)
@@ -328,7 +329,7 @@ string."
 ;; TeX-print-command.
 
 (defcustom TeX-print-command
-  "{ test -e %s.dvi && %(o?)dvips -P%p %r %s; } || lpr -P%p %o"
+  "{ test -e %s.dvi && %(o?)dvips -P%p %r %s; } || lpr -P%p %(outfile+ext)"
   "Command used to print a file.
 
 First `%p' is expanded to the printer name, then ordinary expansion is
@@ -356,7 +357,7 @@ the printer has no corresponding command."
      ;; Print to the (unnamed) default printer.  If there is a DVI
      ;; file print via Dvips.  If not, pass the output file (which
      ;; should then be a Postscript or PDF file) directly to lpr.
-     "{ test -e %s.dvi && %(o?)dvips -f %r %s | lpr; } || lpr %o"
+     "{ test -e %s.dvi && %(o?)dvips -f %r %s | lpr; } || lpr %(outfile+ext)"
      ;; Show the queue for the (unnamed) default printer.
      "lpq"))
   "List of available printers.
@@ -420,8 +421,8 @@ string."
 	    (TeX-source-correlate-start-server-maybe)
 	    (TeX-view-command-raw)))
     ("%vv" (lambda ()
-	    (TeX-source-correlate-start-server-maybe)
-	    (TeX-output-style-check TeX-output-view-style)))
+	     (TeX-source-correlate-start-server-maybe)
+	     (TeX-output-style-check TeX-output-view-style)))
     ("%v" (lambda ()
 	    (TeX-source-correlate-start-server-maybe)
 	    (TeX-style-check TeX-view-style)))
@@ -451,6 +452,24 @@ string."
 		 (if TeX-interactive-mode
 		     ""
 		   " -interaction=nonstopmode")))
+    ;; Job name option, used unless the command is run on a region.
+    ("%(jobname)" (lambda ()
+		    (let ((jobname
+			   (TeX-master-get-variable 'TeX-jobname)))
+		      (if (and jobname (null TeX-current-process-region-p))
+			  (concat " -jobname=" (prin1-to-string jobname))
+			""))))
+    ;; Directory in which the output files will be written.
+    ("%(outdir)" (lambda ()
+		   (let ((output-directory
+			  (TeX-master-get-variable 'TeX-output-directory)))
+		     (if output-directory
+			 (concat " -output-directory="
+				 (prin1-to-string
+				  ;; Strip trailing separator.
+				  (substring output-directory 0
+					     (1- (length output-directory)))))
+		       ""))))
     ("%(o?)" (lambda () (if (eq TeX-engine 'omega) "o" "")))
     ("%(tex)" (lambda () (eval (nth 2 (assq TeX-engine (TeX-engine-alist))))))
     ("%(latex)" (lambda () (eval (nth 3 (assq TeX-engine (TeX-engine-alist))))))
@@ -462,9 +481,11 @@ string."
 		    (or (when TeX-source-correlate-output-page-function
 			  (funcall TeX-source-correlate-output-page-function))
 			"1")))
-    ;; `file' means to call `TeX-master-file' or `TeX-region-file'
-    ("%s" file nil t)
-    ("%t" file t t)
+    ;; In what follows, `file' means to call `TeX-master-file',
+    ;; `TeX-region-file' or `TeX-active-master' (which uses `TeX-master-file'
+    ;; and `TeX-region-file').
+    ("%s" file nil t)			; file name without extension
+    ("%t" file t t)			; file name with extension
     ("%`" (lambda nil
 	    (setq TeX-command-pos t TeX-command-text "")))
     (" \"\\" (lambda nil
@@ -496,21 +517,30 @@ string."
 		      (setq pos (+ (length TeX-command-text) 9)
 			    TeX-command-pos
 			    (and (string-match " "
-					      (funcall file t t))
+					       (funcall file t t))
 				 "\""))
 		      (concat TeX-command-text " \"\\input\""))
 		  (setq TeX-command-pos nil)
 		  "")
 	      (setq TeX-command-text nil))))
     ("%n" TeX-current-line)
-    ("%d" file "dvi" t)
-    ("%f" file "ps" t)
+    ;; Output file name with "dvi" extension, path relative to master file.
+    ("%d" (lambda () (TeX-output-file "dvi" nil t)))
+    ;; Output file name with "ps" extension, path relative to master file.
+    ("%f" (lambda () (TeX-output-file "ps" nil t)))
+    ;; Output file name, extension guessed using `TeX-output-extension', without
+    ;; directory.
     ("%o" (lambda nil (funcall file (TeX-output-extension) t)))
+    ;; Output file name, extension guessed using `TeX-output-extension', path
+    ;; relative to master file.
+    ("%(outfile+ext)" (lambda () (prin1-to-string (TeX-output-file t nil t))))
+    ;; Output file, without extension, with path relative to master file.
+    ("%(outfile-ext)" (lambda () (prin1-to-string (TeX-output-file nil nil t))))
     ;; for source specials the file name generated for the xdvi
     ;; command needs to be relative to the master file, just in
     ;; case the file is in a different subdirectory
     ("%b" TeX-current-file-name-master-relative)
-    ;; Okular forward PDF search requires absolute path.
+    ;; Absolute path of the current file, Okular forward PDF search requires it.
     ("%a" (lambda nil (prin1-to-string (expand-file-name (buffer-file-name)))))
     ;; the following is for preview-latex.
     ("%m" preview-create-subdirectory))
@@ -806,6 +836,35 @@ echo area.  If `expert' display output buffer with raw processor output."
   :group 'TeX-output
   :type 'boolean)
 
+(defcustom TeX-output-directory nil
+  "Directory in which output files will be written.
+Must end with a trailing directory separator.
+
+If non-nil, it is passed to TeX processor with
+\"-output-directory\" option."
+  :group 'TeX-output
+  :type '(choice (const :tag "Current directory" nil)
+		 (directory :tag "Directory" :format "%v")))
+(make-variable-buffer-local 'TeX-output-directory)
+(put 'TeX-output-directory 'safe-local-variable
+     '(lambda (x)
+	(or (stringp x)
+	    (null x))))
+
+(defcustom TeX-jobname nil
+  "Name used as job name.
+
+If non-nil, it is passed to TeX processor with \"-jobname\"
+option."
+  :group 'TeX-output
+  :type '(choice (const nil)
+		 (string :tag "Other name" :format "%v")))
+(make-variable-buffer-local 'TeX-jobname)
+(put 'TeX-jobname 'safe-local-variable
+     '(lambda (x)
+	(or (stringp x)
+	    (null x))))
+
 (defun TeX-toggle-debug-bad-boxes ()
   "Toggle if the debugger should display \"bad boxes\" too."
   (interactive)
@@ -935,7 +994,7 @@ is not recommended because it is more powerful than
     ("^dvi$" "^legalpaper$" "%(o?)xdvi %dS -paper legal %d")
     ("^dvi$" "^executivepaper$" "%(o?)xdvi %dS -paper 7.25x10.5in %d")
     ("^dvi$" "." "%(o?)xdvi %dS %d")
-    ("^pdf$" "." "xpdf -remote %s -raise %o %(outpage)")
+    ("^pdf$" "." "xpdf -remote %s -raise %(outfile+ext) %(outpage)")
     ("^html?$" "." "netscape %o"))
   "List of output file extensions and view options.
 
@@ -1061,7 +1120,7 @@ the requirements are met."
   (let* ((uri (concat "file://" (let ((url-unreserved-chars (cons ?/ url-unreserved-chars)))
 				  (url-hexify-string
 				   (expand-file-name
-				    (concat file "." (TeX-output-extension)))))))
+				    (TeX-output-file t))))))
 	 (owner (dbus-call-method
 		 :session "org.gnome.evince.Daemon"
 		 "/org/gnome/evince/Daemon"
@@ -1083,14 +1142,14 @@ the requirements are met."
 (defvar TeX-view-program-list-builtin
   (cond
    ((eq system-type 'windows-nt)
-    '(("Yap" ("yap -1" (mode-io-correlate " -s %n%b") " %o"))
+    '(("Yap" ("yap -1" (mode-io-correlate " -s %n%b") " %(outfile+ext)"))
       ("dvips and start" "dvips %d -o && start \"\" %f")
-      ("start" "start \"\" %o")))
+      ("start" "start \"\" %(outfile+ext)")))
    ((eq system-type 'darwin)
-    '(("Preview.app" "open -a Preview.app %o")
-      ("Skim" "open -a Skim.app %o")
-      ("displayline" "displayline %n %o %b")
-      ("open" "open %o")))
+    '(("Preview.app" "open -a Preview.app %(outfile+ext)")
+      ("Skim" "open -a Skim.app %(outfile+ext)")
+      ("displayline" "displayline %n %(outfile+ext) %b")
+      ("open" "open %(outfile+ext)")))
    (t
     `(("xdvi" ("%(o?)xdvi"
 	       (mode-io-correlate " -sourceposition \"%n %b\" -editor \"%cS\"")
@@ -1104,8 +1163,8 @@ the requirements are met."
 	       (paper-executive " -paper 7.25x10.5in")
 	       " %d"))
       ("dvips and gv" "%(o?)dvips %d -o && gv %f")
-      ("gv" "gv %o")
-      ("xpdf" ("xpdf -remote %s -raise %o" (mode-io-correlate " %(outpage)")))
+      ("gv" "gv %(outfile+ext)")
+      ("xpdf" ("xpdf -remote %s -raise %(outfile+ext)" (mode-io-correlate " %(outpage)")))
       ("Evince" ,(if (TeX-evince-dbus-p :forward)
 		     'TeX-evince-sync-view
 		   `("evince" (mode-io-correlate
@@ -1114,9 +1173,9 @@ the requirements are met."
 			       ,(if (string-match "--page-index"
 						  (shell-command-to-string "evince --help"))
 				    " -i %(outpage)"
-				  " -p %(outpage)")) " %o")))
-      ("Okular" ("okular --unique %o" (mode-io-correlate "#src:%n%a")))
-      ("xdg-open" "xdg-open %o"))))
+				  " -p %(outpage)")) " %(outfile+ext)")))
+      ("Okular" ("okular --unique %(outfile+ext)" (mode-io-correlate "#src:%n%a")))
+      ("xdg-open" "xdg-open %(outfile+ext)"))))
   "Alist of built-in viewer specifications.
 This variable should not be changed by the user who can use
 `TeX-view-program-list' to add new viewers or overwrite the
@@ -1670,7 +1729,7 @@ enabled and the `synctex' binary is available."
 			 "-i" (format "%s:%s:%s" (line-number-at-pos)
 				      (current-column)
 				      file)
-			 "-o" (TeX-active-master (TeX-output-extension))))))
+			 "-o" (TeX-output-file t)))))
     (when (string-match "Page:\\([0-9]+\\)" synctex-output)
       (match-string 1 synctex-output))))
 
@@ -1866,18 +1925,28 @@ output files."
 			     (symbol-value
 			      (intern (concat mode-prefix
 					      "-clean-output-suffixes"))))))
-	 (master (TeX-active-master))
-	 (master-dir (file-name-directory master))
+	 ;; Directory of master file, relative to current one.
+	 (master-dir (file-name-directory (TeX-active-master)))
+	 ;; Files to be deleted in master file directory.  `TeX-region-file' is
+	 ;; always saved in master directory.
+	 (master-dir-files
+	  (directory-files (or master-dir ".") nil (TeX-region-file t t)))
+	 ;; Output file name, with path relative to current file.
+	 (output (TeX-output-file))
+	 ;; Directory of output file, relative to current one.
+	 (output-dir (file-name-directory output))
 	 (regexp (concat "\\("
-			 (regexp-quote (file-name-nondirectory master)) "\\|"
+			 (regexp-quote (file-name-nondirectory output)) "\\|"
 			 (TeX-region-file nil t)
 			 "\\)"
 			 "\\("
 			 (mapconcat 'identity suffixes "\\|")
-			 "\\)\\'"
-			 "\\|" (TeX-region-file t t)))
-	 (files (when regexp
-		  (directory-files (or master-dir ".") nil regexp))))
+			 "\\)\\'"))
+	 ;; Files to be deleted in output directory.
+	 (output-dir-files (when regexp
+			     (directory-files (or output-dir ".") nil regexp)))
+	 ;; List of all files to be deleted.
+	 (files (append master-dir-files output-dir-files)))
     (if files
 	(when (or (not TeX-clean-confirm)
 		  (condition-case nil
@@ -1888,8 +1957,10 @@ output files."
 					 'y-or-n-p "Delete files? ")
 		    (wrong-type-argument ; e.g. with Emacs 21
 		     (y-or-n-p (format "Delete %S? " (car files))))))
-	  (dolist (file files)
-	    (delete-file (concat master-dir file))))
+	  (dolist (file master-dir-files)
+	    (delete-file (concat master-dir file)))
+	  (dolist (file output-dir-files)
+	    (delete-file (concat output-dir file))))
       (message "No files to be deleted"))))
 
 
@@ -2095,6 +2166,58 @@ the beginning of the file, but that feature will be phased out."
       (and buffer-file-name
 	   (file-name-directory buffer-file-name)))))))
 
+(defun TeX-output-file (&optional extension nondirectory relative)
+  "Path of the output file.
+
+If optional argument EXTENSION is non-nil, add that file extension to
+the name.  Special value t means use `TeX-output-extension'.
+
+If optional second argument NONDIRECTORY is non-nil, do not include
+the directory.
+
+If optional third argument RELATIVE is non-nil, print the path
+relative to the master file, to the current one otherwise.  It
+has no effect when NONDIRECTORY is non-nil."
+  (let* ((master-file (TeX-master-file t)) ; Get master file name once.
+	 (master-dir (file-name-directory master-file))
+	 jobname output-directory buffer basename)
+    ;; Get `TeX-jobname' and `TeX-output-directory' from master file.  It's
+    ;; faster than using `TeX-master-get-variable' twice.
+    (if (eq TeX-master t)
+	(setq buffer (current-buffer))
+      (if (file-exists-p master-file)
+	  (setq buffer (find-file-noselect master-file t))
+	(message "Cannot find master file.")))
+    (if buffer
+	(with-current-buffer buffer
+	  (setq jobname (symbol-value 'TeX-jobname)
+		output-directory (symbol-value 'TeX-output-directory))))
+    ;; Use default extension when `extension' is equal to t.
+    (if (eq extension t)
+	(setq extension (TeX-output-extension)))
+    ;; If the command is run on a region, the output file base name is
+    ;; determined by `TeX-region-file', otherwise by `jobname' (if non-nil) or
+    ;; the base name of the master file.
+    (if TeX-current-process-region-p
+	(setq basename (TeX-region-file nil t))
+      (setq basename (or jobname (file-name-sans-extension
+				  (file-name-nondirectory master-file)))))
+    ;; Print the output file.
+    (concat
+     ;; Directory, when `nondirectory' is nil.
+     (if (null nondirectory)
+	 (cond
+	  ;; `output-directory' is absolute or `relative' is non-nil, don't print
+	  ;; `master-dir'.
+	  ((or relative (if output-directory
+			    (file-name-absolute-p output-directory)))
+	   output-directory)
+	  ;; `output-directory' isn't absolute or `relative' is nil, concatenate
+	  ;; `master-dir' and `output-directory'.
+	  (t
+	   (concat master-dir output-directory))))
+     basename (if extension (concat "." extension)))))
+
 (defun TeX-add-local-master ()
   "Add local variable for `TeX-master'."
   (when (and (buffer-file-name)
@@ -2132,6 +2255,23 @@ Return nil otherwise."
     (goto-char (point-max))
     (search-backward "\n\^L" (max (- (point-max) 3000) (point-min)) 'move)
     (re-search-forward "^%+ *TeX-master:" nil t)))
+
+(defun TeX-master-get-variable (symbol &optional default)
+  "Return the value of SYMBOL in master file.
+
+Return DEFAULT if the master file cannot be found or SYMBOL is
+not defined."
+  (let ((master-file (TeX-master-file t)) ; Get master file name once.
+	buffer)
+    (if (eq TeX-master t)
+	(setq buffer (current-buffer))
+      (if (file-exists-p master-file)
+	  (setq buffer (find-file-noselect master-file t))
+	(message "Cannot find master file.")))
+    (if (and buffer (local-variable-p symbol buffer))
+	(with-current-buffer buffer
+	  (symbol-value symbol))
+      default)))
 
 ;;; Style Paths
 
@@ -4349,7 +4489,65 @@ Brace insertion is only done if point is in a math construct and
 	:help "Make \"Next Error\" show overfull and underfull boxes"]
        ["Debug Warnings" TeX-toggle-debug-warnings
 	:style toggle :selected TeX-debug-warnings
-	:help "Make \"Next Error\" show warnings"])))
+	:help "Make \"Next Error\" show warnings"]
+       ;; Set `TeX-jobname' and `TeX-output-directory'.  XXX: works only with
+       ;; GNU Emacs > 23.1.
+       ,@(if (fboundp 'add-file-local-variable)
+	     '("-"
+	       [ "Set job name"
+		 (lambda ()
+		   (interactive)
+		   (when (require 'files-x nil t)
+		     (let (master buffer value)
+		       (if (eq TeX-master t)
+			   ;; If master file is the currently visited one, then
+			   ;; stay here.
+			   (setq buffer (current-buffer))
+			 ;; Else visit master file.
+			 (setq master (TeX-master-file t))
+			 (if (file-exists-p master)
+			     (setq buffer (find-file-noselect master t))
+			   (message "Cannot find master file.")))
+		       (when buffer
+			 (with-current-buffer buffer
+			   (setq value (TeX-read-string "Job name: "
+							TeX-jobname))
+			   (if (zerop (length value))
+			       (setq value nil))
+			   (modify-file-local-variable
+			    'TeX-jobname value 'add-or-replace)
+			   (setq TeX-jobname value)
+			   (message "Done."))))))
+		 :help "Set \"-jobname\" option to TeX processor for current document" ]
+	       [ "Set output directory"
+		 (lambda ()
+		   (interactive)
+		   (when (require 'files-x nil t)
+		     (let (master buffer value)
+		       (if (eq TeX-master t)
+			   ;; If master file is the currently visited one, then
+			   ;; stay here.
+			   (setq buffer (current-buffer))
+			 ;; Else visit master file.
+			 (setq master (TeX-master-file t))
+			 (if (file-exists-p master)
+			     (setq buffer (find-file-noselect master t))
+			   (message "Cannot find master file.")))
+		       (when buffer
+			 (with-current-buffer buffer
+			   (setq
+			    value
+			    (TeX-read-string
+			     "Output directory (with trailing separator): "
+			     TeX-output-directory))
+			   (if (zerop (length value))
+			       (setq value nil))
+			   (modify-file-local-variable
+			    'TeX-output-directory value 'add-or-replace)
+			   (setq TeX-output-directory value)
+			   (message "Done."))))))
+		 :help "Set \"-output-directory\" option to TeX processor for current document" ]
+	       )))))
    (let ((file 'TeX-command-on-current));; is this actually needed?
      (TeX-maybe-remove-help
       (delq nil

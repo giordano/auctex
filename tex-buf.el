@@ -80,7 +80,7 @@ Return non-nil if document needs to be re-TeX'ed."
   (if (string-equal name "")
       (setq name (TeX-master-file)))
 
-  (TeX-check-files (concat name "." (TeX-output-extension))
+  (TeX-check-files (TeX-output-file t)
 		   (cons name (TeX-style-list))
 		   TeX-file-extensions))
 
@@ -369,10 +369,14 @@ Try each original with each member of EXTENSIONS, in all directories
 in `TeX-check-path'. Returns true if any of the ORIGINALS with any of the
 EXTENSIONS are newer than DERIVED. Will prompt to save the buffer of any
 ORIGINALS which are modified but not saved yet."
-  (let (existingoriginals
-        found
-	(extensions (TeX-delete-duplicate-strings extensions))
-        (buffers (buffer-list)))
+  (let* (existingoriginals
+	 found
+	 (extensions (TeX-delete-duplicate-strings extensions))
+	 (buffers (buffer-list))
+	 (output-directory (file-name-directory (TeX-output-file)))
+	 (TeX-check-path (if output-directory
+			     (append TeX-check-path (list output-directory))
+			   TeX-check-path)))
     (dolist (path (mapcar (lambda (dir)
 			    (expand-file-name (file-name-as-directory dir)))
 			  TeX-check-path))
@@ -410,7 +414,7 @@ ORIGINALS which are modified but not saved yet."
   "Query the user for what TeX command to use."
   (let* ((default
 	   (cond ((if (string-equal name TeX-region)
-		      (TeX-check-files (concat name "." (TeX-output-extension))
+		      (TeX-check-files (TeX-output-file t)
 				       (list name)
 				       TeX-file-extensions)
 		    (TeX-save-document (TeX-master-file)))
@@ -418,7 +422,7 @@ ORIGINALS which are modified but not saved yet."
 		 ((and (memq major-mode '(doctex-mode latex-mode))
 		       ;; Want to know if bib file is newer than .bbl
 		       ;; We don't care whether the bib files are open in emacs
-		       (TeX-check-files (concat name ".bbl")
+		       (TeX-check-files (TeX-output-file "bbl")
 					(mapcar 'car
 						(LaTeX-bibliography-list))
 					(append BibTeX-file-extensions
@@ -512,7 +516,7 @@ QUEUE is non-nil when we are checking for the printer queue."
 The viewer is started either on region or master file,
 depending on the last command issued."
   (interactive)
-  (let ((output-file (TeX-active-master (TeX-output-extension))))
+  (let ((output-file (TeX-output-file t)))
     (if (file-exists-p output-file)
 	(TeX-command "View" 'TeX-active-master 0)
       (message "Output file %S does not exist." output-file))))
@@ -634,7 +638,10 @@ run of `TeX-run-TeX', use
   (plist-get TeX-error-report-switches (intern (TeX-master-file)))")
 
 (defun TeX-run-TeX (name command file)
-  "Create a process for NAME using COMMAND to format FILE with TeX."
+  "Create a process for NAME using COMMAND to format FILE with TeX.
+
+If `TeX-output-directory' is set and the directory does not
+exist, suggest to create it."
 
   ;; Save information in TeX-error-report-switches
   ;; Initialize error to nil (no error) for current master.
@@ -653,6 +660,12 @@ run of `TeX-run-TeX', use
   ;; can we assume that TeX-sentinel-function will not be changed
   ;; during (TeX-run-format ..)? --pg
   ;; rather use let* ? --pg
+
+  (let ((outdir (file-name-directory (TeX-output-file nil))))
+    (and outdir (null (file-exists-p outdir))
+	 (y-or-n-p (concat "Directory \"" outdir
+			   "\" does not exist.  Create it?"))
+	 (make-directory outdir)))
 
   (if TeX-interactive-mode
       (TeX-run-interactive name command file)
@@ -954,7 +967,7 @@ Warnings can be indicated by LaTeX or packages."
 		 nil t))
 	      (with-current-buffer TeX-command-buffer
 		(and (LaTeX-bibliography-list)
-		     (TeX-check-files (TeX-master-file "bbl")
+		     (TeX-check-files (TeX-output-file "bbl")
 				      (TeX-style-list)
 				      (append TeX-file-extensions
 					      BibTeX-file-extensions
@@ -968,7 +981,7 @@ Warnings can be indicated by LaTeX or packages."
 		 "^\\(?:LaTeX\\|Package natbib\\) Warning: Citation" nil t))
 	      (with-current-buffer TeX-command-buffer
 		(and (LaTeX-bibliography-list)
-		     (TeX-check-files (TeX-master-file "bbl")
+		     (TeX-check-files (TeX-output-file "bbl")
 				      (TeX-style-list)
 				      (append TeX-file-extensions
 					      BibTeX-file-extensions
