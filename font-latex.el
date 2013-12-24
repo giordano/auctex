@@ -69,7 +69,7 @@
   "Regexp used to find quotes.")
 (make-variable-buffer-local 'font-latex-quote-regexp-beg)
 
-(defvar font-latex-quote-list '(("``" "''") ("<<" ">>" french) ("�" "�" french))
+(defvar font-latex-quote-list '(("``" "''") ("<<" ">>" french) ("«" "»" french))
   "List of quote specifiers for quotation fontification.
 
 Each element of the list is either a list consisting of two
