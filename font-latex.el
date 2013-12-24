@@ -69,7 +69,7 @@
   "Regexp used to find quotes.")
 (make-variable-buffer-local 'font-latex-quote-regexp-beg)
 
-(defvar font-latex-quote-list '(("``" "''") ("<<" ">>" french) ("«" "»" french))
+(defvar font-latex-quote-list '(("``" "''") ("<<" ">>" french) ("ï¿½" "ï¿½" french))
   "List of quote specifiers for quotation fontification.
 
 Each element of the list is either a list consisting of two
@@ -302,8 +302,8 @@ variable `font-latex-fontify-sectioning'." num)
       ("defbibheading" "{[{") ("defbibnote" "{{") ("defbibfilter" "{{") ("defbibcheck" "{{")
       ("defbibentryset" "{{") ("Cite" "[[{") ("parencite" "*[[{") ("Parencite" "[[{")
       ("footcite" "[[{") ("footcitetext" "[[{") ("textcite" "[[{") ("Textcite" "[[{")
-      ("smartcite" "[[{") ("Smartcite" "[[{") ("supercite" "{") ("autocite" "*[[{")
-      ("Autocite" "*[[{") ("citeauthor" "[[{") ("Citeauthor" "[[{") ("citetitle" "*[[{")
+      ("smartcite" "[[{") ("Smartcite" "[[{") ("supercite" "{") ("autocite" "[{{")
+      ("Autocite" "[{{") ("citeauthor" "[[{") ("Citeauthor" "[[{") ("citetitle" "*[[{")
       ("citeyear" "*[[{") ("citedate" "*[[{") ("citeurl" "[[{") ("parentext" "{")
       ("brackettext" "{") ("fullcite" "[[{") ("fullfootcite" "[[{") ("volcite" "[{[[")
       ("Volcite" "[{[[") ("pvolcite" "[{[[") ("Pvolcite" "[{[[") ("fvolcite" "[{[[")
