@@ -561,8 +561,12 @@ TYPE can be either 'env for environments, 'macro for macros or
 	   (LaTeX-find-matching-end)
 	   (point))
 	  (t
-	   (goto-char start)
-	   (TeX-find-macro-end)))))
+	   ;; Most of the math macros to be folded don't take an optional
+	   ;; argument, and in math mode square brackets are generally used as
+	   ;; they are.
+	   (let ((TeX-find-macro-end-ignore-brackets (eq type 'math)))
+	     (goto-char start)
+	     (TeX-find-macro-end))))))
 
 (defun TeX-fold-overfull-p (ov-start ov-end display-string)
   "Return t if an overfull line will result after adding an overlay.

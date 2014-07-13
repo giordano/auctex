@@ -5013,11 +5013,16 @@ considered part of the macro."
 	      (cons start-point (point))
 	    nil))))))
 
-(defun TeX-find-macro-end-helper (start)
+(defvar TeX-find-macro-end-ignore-brackets nil
+  "Whether `TeX-find-macro-end' should ignore square brackets.")
+
+(defun TeX-find-macro-end-helper (start &optional ignore-brackets)
   "Find the end of a macro given its START.
-START is the position just before the starting token of the macro.
-If the macro is followed by square brackets or curly braces,
-those will be considered part of it."
+START is the position just before the starting token of the
+macro.  If the macro is followed by square brackets or curly
+braces, those will be considered part of it.  But if
+`TeX-find-macro-end-ignore-brackets' is non-nil, square brackets
+will be ignored as part of the macro."
   (save-excursion
     (save-match-data
       (catch 'found
@@ -5028,12 +5033,13 @@ those will be considered part of it."
 	(while (not (eobp))
 	  (cond
 	   ;; Skip over pairs of square brackets
-	   ((or (looking-at "[ \t]*\n?\\(\\[\\)") ; Be conservative: Consider
-					; only consecutive lines.
-		(and (looking-at (concat "[ \t]*" TeX-comment-start-regexp))
-		     (save-excursion
-		       (forward-line 1)
-		       (looking-at "[ \t]*\\(\\[\\)"))))
+	   ((and (null TeX-find-macro-end-ignore-brackets)
+		 ;; Be conservative: Consider only consecutive lines.
+		 (or (looking-at "[ \t]*\n?\\(\\[\\)")
+		     (and (looking-at (concat "[ \t]*" TeX-comment-start-regexp))
+			  (save-excursion
+			    (forward-line 1)
+			    (looking-at "[ \t]*\\(\\[\\)")))))
 	    (goto-char (match-beginning 1))
 	    (condition-case nil
 		(forward-sexp)
@@ -5059,7 +5065,9 @@ those will be considered part of it."
   "Return the start of a macro.
 If LIMIT is given, do not search backward further than this point
 in buffer.  Arguments enclosed in brackets or braces are
-considered part of the macro."
+considered part of the macro.  If
+`TeX-find-macro-end-ignore-brackets' is non-nil, square brackets
+will be ignored as part of the macro."
   (car (TeX-find-macro-boundaries limit)))
 
 (defun TeX-find-macro-end ()
