@@ -113,12 +113,16 @@ ABD: EveryShipout initializing macros"
              (error "./test.tex" 11 "Undefined control sequence." 0
 		    "\nl.11 \\doesnotexist\n\n(./foo.aux) )"
 		    "\\doesnotexist\n" nil nil 2682 nil)
+             (warning "./test.tex" nil
+		      "Package tikz Warning: The key 'up to date check=md5' is impossible, there is no macro to compute MD5. Falling back to 'up to date check=diff'."
+		      0 "! Package tikz Warning: The key 'up to date check=md5' is impossible, there is no macro to compute MD5. Falling back to 'up to date check=diff'.\n===== Image 'tikz/foo-figure0' is up-to-date. ======\n<use  \"tikz/foo-figure0.pdf\" > [1] (./foo.aux) )\n"
+		      nil nil nil 2931 nil)
              (warning "./test.tex" 48
               "LaTeX Warning: Citation 'Knuth:TeXbook-1984' undefined on input line 48." 0
               "LaTeX Warning: Citation 'Knuth:TeXbook-1984' undefined on input line 48.\n"
-              "Knuth:TeXbook-1984" 48 nil 2756 nil)
+              "Knuth:TeXbook-1984" 48 nil 3005 nil)
              (warning "./test.tex" nil "LaTeX Warning: There were undefined references."
-              0 "LaTeX Warning: There were undefined references.\n" nil nil nil 2805 nil)
+              0 "LaTeX Warning: There were undefined references.\n" nil nil nil 3054 nil)
 ))))
 
 ;; See https://lists.gnu.org/archive/html/auctex/2017-04/msg00007.html.

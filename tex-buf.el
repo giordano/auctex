@@ -1496,7 +1496,9 @@ Return nil ifs no errors were found."
 		      (match-string 1 output-file)
 		    "dvi")))))))
   (if process (TeX-format-mode-line process))
-  (if (re-search-forward "^\\(!\\|.*:[0-9]+:\\) " nil t)
+  (if (save-excursion
+	(and (re-search-forward "^\\(!\\|.*:[0-9]+:\\) " nil t)
+	     (not (looking-at LaTeX-warnings-regexp))))
       (progn
 	(message "%s errors in `%s'. Use %s to display." name (buffer-name)
 		 (substitute-command-keys
@@ -1510,10 +1512,10 @@ Return nil ifs no errors were found."
 			 t))
 	t)
     (let (dvi2pdf)
-	(if (with-current-buffer TeX-command-buffer
-	   (and TeX-PDF-mode (setq dvi2pdf (TeX-PDF-from-DVI))))
-	 (setq TeX-command-next dvi2pdf)
-       (setq TeX-command-next TeX-command-Show)))
+      (if (with-current-buffer TeX-command-buffer
+	    (and TeX-PDF-mode (setq dvi2pdf (TeX-PDF-from-DVI))))
+	  (setq TeX-command-next dvi2pdf)
+	(setq TeX-command-next TeX-command-Show)))
     nil))
 
 ;; This regexp should catch warnings of the type
@@ -1530,7 +1532,7 @@ Return nil ifs no errors were found."
 Warnings can be indicated by LaTeX or packages."
   (save-excursion
     (goto-char (point-min))
-    (re-search-forward (concat "^" LaTeX-warnings-regexp) nil t)))
+    (re-search-forward (concat "^\\(! \\)?" LaTeX-warnings-regexp) nil t)))
 
 (defun TeX-LaTeX-sentinel-has-bad-boxes ()
   "Return non-nil, if LaTeX output indicates overfull or underfull boxes."
@@ -2469,24 +2471,24 @@ displaying the issue.
 Return non-nil if an error or warning is found."
   (let ((regexp
 	 (concat
-	  ;; TeX error
+	  ;; LaTeX warning (group 1)
+	  "^\\(?:! \\)?\\(" LaTeX-warnings-regexp ".*\\)\\|"
+	  ;; TeX error (groups 2 and 3)
 	  "^\\(!\\|\\(.*?\\):[0-9]+:\\) \\|"
-	  ;; New file
+	  ;; New file (group 4)
 	  "(\n?\\([^\n())]+\\)\\|"
-	  ;; End of file.
+	  ;; End of file (group 5)
 	  "\\()\\)\\|"
-	  ;; Hook to change line numbers
+	  ;; Hook to change line numbers (group 6)
 	  " !\\(?:offset(\\([---0-9]+\\))\\|"
-	  ;; Hook to change file name
+	  ;; Hook to change file name (group 7)
 	  "name(\\([^)]+\\))\\)\\|"
-	  ;; Start of LaTeX bad box
+	  ;; Start of LaTeX bad box (group 8)
 	  "^\\(\\(?:Overfull\\|Underfull\\|Tight\\|Loose\\) "
 	  ;;   Horizontal bad box
 	  "\\(?:\\\\hbox.* at lines? [0-9]+\\(?:--[0-9]+\\)?$\\|"
 	  ;;   Vertical bad box.  See also `TeX-warning'.
-	  "\\\\vbox ([ a-z0-9]+) has occurred while \\\\output is active \\[[^]]+\\]\\)\\)\\|"
-	  ;; LaTeX warning
-	  "^\\(" LaTeX-warnings-regexp ".*\\)"))
+	  "\\\\vbox ([ a-z0-9]+) has occurred while \\\\output is active \\[[^]]+\\]\\)\\)"))
 	(error-found nil))
     (while
 	(cond
@@ -2499,46 +2501,46 @@ Return non-nil if an error or warning is found."
 	    (TeX-pop-to-buffer old))
 	  nil)
 	 ;; TeX error
-	 ((match-beginning 1)
-	  (when (match-beginning 2)
+	 ((match-beginning 2)
+	  (when (match-beginning 3)
 	    (unless TeX-error-file
 	      (push nil TeX-error-file)
 	      (push nil TeX-error-offset))
 	    (unless (car TeX-error-offset)
-	      (rplaca TeX-error-file (TeX-match-buffer 2))))
+	      (rplaca TeX-error-file (TeX-match-buffer 3))))
 	  (setq error-found t)
 	  (if (looking-at "Preview ")
 	      t
 	    (TeX-error store)
 	    nil))
 	 ;; LaTeX bad box
-	 ((match-beginning 7)
+	 ((match-beginning 8)
 	  ;; In `TeX-error-list' we collect all warnings, also if they're going
 	  ;; to be actually skipped.
 	  (if (or store TeX-debug-bad-boxes)
 	      (progn
 		(setq error-found t)
-		(TeX-warning (TeX-match-buffer 7) (match-beginning 7) t store)
+		(TeX-warning (TeX-match-buffer 8) (match-beginning 8) t store)
 		nil)
 	    (re-search-forward "\r?\n\
 \\(?:.\\{79\\}\r?\n\
 \\)*.*\r?$")
 	    t))
 	 ;; LaTeX warning
-	 ((match-beginning 8)
+	 ((match-beginning 1)
 	  ;; In `TeX-error-list' we collect all warnings, also if they're going
 	  ;; to be actually skipped.
 	  (if (or store TeX-debug-warnings)
 	      (progn
 		(setq error-found t)
-		(TeX-warning (TeX-match-buffer 8) (match-beginning 8) nil store)
+		(TeX-warning (TeX-match-buffer 1) (match-beginning 1) nil store)
 		nil)
 	    t))
 
 	 ;; New file -- Push on stack
-	 ((match-beginning 3)
-	  (let ((file (TeX-match-buffer 3))
-		(end (match-end 3)))
+	 ((match-beginning 4)
+	  (let ((file (TeX-match-buffer 4))
+		(end (match-end 4)))
 	    ;; Strip quotation marks and remove newlines if necessary
 	    (when (or (eq (string-to-char file) ?\")
 		      (string-match "[ \t\n]" file))
@@ -2567,23 +2569,23 @@ Return non-nil if an error or warning is found."
 	  t)
 
 	 ;; End of file -- Pop from stack
-	 ((match-beginning 4)
+	 ((match-beginning 5)
 	  (when (> (length TeX-error-file) 0)
 	    (pop TeX-error-file)
 	    (pop TeX-error-offset))
-	  (goto-char (match-end 4))
+	  (goto-char (match-end 5))
 	  t)
 
 	 ;; Hook to change line numbers
-	 ((match-beginning 5)
+	 ((match-beginning 6)
 	  (setq TeX-error-offset
-		(list (string-to-number (TeX-match-buffer 5))))
+		(list (string-to-number (TeX-match-buffer 6))))
 	  t)
 
 	 ;; Hook to change file name
-	 ((match-beginning 6)
+	 ((match-beginning 7)
 	  (setq TeX-error-file
-		(list (TeX-match-buffer 6)))
+		(list (TeX-match-buffer 7)))
 	  t)))
     error-found))
 

@@ -65,6 +65,11 @@ Overfull \hbox (13.59138pt too wide) in paragraph at lines 367--368
 l.11 \doesnotexist
 
 (./foo.aux) )
+
+! Package tikz Warning: The key 'up to date check=md5' is impossible, there is no macro to compute MD5. Falling back to 'up to date check=diff'.
+===== Image 'tikz/foo-figure0' is up-to-date. ======
+<use  "tikz/foo-figure0.pdf" > [1] (./foo.aux) )
+
 LaTeX Warning: Citation 'Knuth:TeXbook-1984' undefined on input line 48.
 
 LaTeX Warning: There were undefined references.
